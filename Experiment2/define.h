@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -15,14 +16,7 @@
 #include <time.h>
 #include <unistd.h>
 
-const char SERVER_HOST[] = "0.0.0.0";
-const int SERVER_PORT = 1234;
-const int SEND_INTERVAL = 1;
-const char MULTICAST_GROUP[] = "224.0.0.2";
-const int MULTICAST_PORT = 12345;
-const int TEST_CNT = 7;
-const int BUFF_CAPACITY = 4;
-
-const int KILLED = 0;
-const int ACTIVE = 1;
-const int INACTIVE = 2;
+const int NUMBER_OF_LAN = 1;
+const int NUMBER_OF_PORTS = 127;
+const int PORT_CLOSE = 0;
+const int PORT_OPEN = 1;
