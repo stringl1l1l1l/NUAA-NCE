@@ -1,8 +1,7 @@
 #include "define.h"
-#include <cstring>
-#include <stdio.h>
-#include <string.h>
+#include <set>
 #include <vector>
+
 
 struct Address {
     char hostname[20];
@@ -77,14 +76,60 @@ void sockconnect(struct Address* b)
         perror("socket");
         return;
     }
+
+    // 改为非阻塞版连接
+    int flags = fcntl(sock, F_GETFL, 0);
+    if (flags == -1) {
+        perror("fcntl");
+        exit(EXIT_FAILURE);
+    }
+
+    if (fcntl(sock, F_SETFL, flags | O_NONBLOCK) == -1) {
+        perror("fcntl");
+        exit(EXIT_FAILURE);
+    }
+
     t_addr.sin_family = AF_INET;
     t_addr.sin_addr.s_addr = inet_addr(b->address);
     t_addr.sin_port = htons(b->port);
 
-    if (connect(sock, (struct sockaddr*)&t_addr, sizeof(t_addr)) < 0)
-        b->open = PORT_CLOSE;
-    else
+    if (connect(sock, (struct sockaddr*)&t_addr, sizeof(t_addr)) < 0) {
+        if (errno == EINPROGRESS) {
+            // Connection in progress, use select to wait for completion
+            fd_set writeSet;
+            FD_ZERO(&writeSet);
+            FD_SET(sock, &writeSet);
+
+            struct timeval timeout;
+            timeout.tv_sec = CONNECT_SEC; // Set the timeout value (in seconds) as needed
+            timeout.tv_usec = CONNECT_MS * 1000; // Set the timeout value (in microseconds) as needed
+
+            int selectResult = select(sock + 1, NULL, &writeSet, NULL, &timeout);
+
+            if (selectResult == -1) {
+                perror("select");
+                b->open = PORT_CLOSE;
+            } else if (selectResult == 0) {
+                // Timeout occurred
+                printf("{ip:%s, port:%d} Connection timed out\n", b->address, b->port);
+                b->open = PORT_CLOSE;
+            } else {
+                // Connection completed successfully
+                b->open = PORT_OPEN;
+            }
+        } else {
+            perror("connect");
+            b->open = PORT_CLOSE;
+        }
+    } else {
+        // Connection completed immediately
         b->open = PORT_OPEN;
+    }
+
+    // Close the socket if it's open but not connected
+    if (b->open == PORT_CLOSE && sock >= 0) {
+        close(sock);
+    }
 }
 
 void* pth_main(void* arg)
@@ -121,24 +166,24 @@ int main(int argc, char** argv)
 
     printf("主机名\t\tip地址\t\t开放端口\n");
     for (int i = 1; i <= NUMBER_OF_LAN; i++) {
-        std::vector<int> portList;
+        std::set<int> portList;
 
         for (int j = 0; j <= NUMBER_OF_PORTS; j++) {
             if (j == 0 && addr[i][j].port == -1) {
                 break;
             } else {
                 if (addr[i][j].open == PORT_OPEN)
-                    portList.push_back(addr[i][j].port);
+                    portList.insert(addr[i][j].port);
             }
         }
 
-        char portListStr[500] = "";
+        char portListStr[1000] = "";
         if (portList.empty())
             strcpy(portListStr, "none");
 
         for (auto mem : portList) {
             char portStr[10] = { 0 };
-            snprintf(portStr, sizeof(portStr), "\'%d\'", mem);
+            snprintf(portStr, sizeof(portStr), "\'%d\' ", mem);
             strcat(portListStr, portStr);
         }
 
