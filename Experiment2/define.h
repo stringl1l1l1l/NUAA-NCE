@@ -16,7 +16,8 @@
 #include <time.h>
 #include <unistd.h>
 
-const int NUMBER_OF_LAN = 1;
+
+const int NUMBER_OF_LAN = 16;
 const int NUMBER_OF_PORTS = 127;
 const int PORT_CLOSE = 0;
 const int PORT_OPEN = 1;
